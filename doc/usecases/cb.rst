@@ -27,7 +27,7 @@ Note that for simplicity, there is no error handling in the examples shown.
     bool is_full = false, is_empty = false;
 
     // Initialize circular buffer, without subscribing to any events.
-    cb_init(&cbuf, lcbuf, 10U, sizeof(uint32_t), NULL, cb_evt_id_none, NULL);
+    cb_init(&cbuf, lcbuf, 10U + 1U, sizeof(uint32_t), NULL, cb_evt_id_none, NULL);
 
     // Write five elements, and obtain five filled elements, five unfilled elements, not full and not empty.
     cb_write(&cbuf, lsbuf, 5U);
@@ -114,7 +114,7 @@ Note that for simplicity, there is no error handling in the examples shown.
 
     // Initialize circular buffer, providing an event handler and subscribing to events.
     const cb_evt_id_t sub_evts = cb_evt_id_read | cb_evt_id_write | cb_evt_id_lock | cb_evt_id_unlock;
-    cb_init(&cbuf, lcbuf, 10U, sizeof(uint32_t), cb_evt_handler, sub_evts, NULL);
+    cb_init(&cbuf, lcbuf, 10U + 1U, sizeof(uint32_t), cb_evt_handler, sub_evts, NULL);
     // Write five elements, this will trigger write and lock/unlock events.
     cb_write(&cbuf, lsbuf, 5U);
     // Read five elements, this will trigger read and lock/unlock events.
