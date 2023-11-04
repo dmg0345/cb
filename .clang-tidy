@@ -1,0 +1,37 @@
+# Clang Tidy file, in YAML format, for reference regarding the checks and options available refer to:
+#   - clang-tidy-15 --help
+#   - https://releases.llvm.org/15.0.0/tools/clang/tools/extra/docs/clang-tidy/index.html
+#   - https://releases.llvm.org/15.0.0/tools/clang/tools/extra/docs/clang-tidy/checks/list.html
+
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  clang-analyzer-*,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-interfaces-global-init,
+  -cppcoreguidelines-avoid-magic-numbers,
+  misc-*,
+  portability-*,
+  performance-*,
+  readability-*,
+  -readability-identifier-length,
+  -readability-avoid-const-params-in-decls,
+  -readability-magic-numbers,
+  -readability-redundant-declaration
+WarningsAsErrors: >
+  bugprone-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  misc-*,
+  portability-*,
+  performance-*,
+  readability-*
+HeaderFilterRegex: >
+  src/*
+  tests/tests/*
+InheritParentConfig: true
+CheckOptions:
+  readability-function-cognitive-complexity.Threshold: 35

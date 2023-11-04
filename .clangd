@@ -1,0 +1,24 @@
+# Clangd Language Server, in YAML format, for reference regarding the checks and options available refer to:
+#   - clangd-15 --help
+#   - https://clangd.llvm.org/config
+# For clang-tidy and clang-format related operations within clangd, the .clang-tidy and .clang-format files are used.
+
+CompileFlags:
+  Add: [-D_CLANGD=1]
+  CompilationDatabase: .cmake_build
+Diagnostics:
+  Suppress: [
+    # Supress unknown pragma due to the following issue, which causes diagnotic push / pop to be detected as errors:
+    #   - https://github.com/clangd/clangd/issues/1167
+    "-Wunknown-pragmas"
+  ]
+Index:
+  Background: Build
+  StandardLibrary: No
+InlayHints:
+  Designators: Yes
+  Enabled: No
+  ParameterNames: Yes
+  DeducedTypes: Yes
+Hover:
+  ShowAKA: No

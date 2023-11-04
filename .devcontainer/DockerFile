@@ -1,0 +1,102 @@
+# syntax=docker/dockerfile:1
+# escape=\
+
+# Use latest Debian available with PowerShell.
+FROM mcr.microsoft.com/powershell:7.3-debian-bookworm
+
+# Ensure working from a known working directory.
+WORKDIR "/"
+# Ensure the active shell is PowerShell.
+SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+# Update package sources, upgrade current installed packages and install new packages. For details refer to:
+#   - https://packages.debian.org/index
+#   - https://manpages.debian.org/stretch/apt/apt-get.8.en.html
+#   - https://docs.docker.com/develop/develop-images/dockerfile_best-practices/ (apt-get)
+#   - https://askubuntu.com/questions/875213/apt-get-to-retry-downloading (apt-get retries)
+# It is possible that the Dockerfile breaks over time at this point as packages might be deprecated and not exist
+# anymore when updates or upgrades are released, in this scenario, the package versions will need to be updated.
+RUN 'Acquire::Retries "6";' > /etc/apt/apt.conf.d/80-retries;                                                          \
+    apt-get --assume-yes update;                                                                                       \
+    apt-get --assume-yes upgrade;                                                                                      \
+    apt-get --assume-yes --show-progress install                                                                       \
+    ## C/C++ / Debuggers / Build Packages ##############################################################################
+    gcc=4:12.2.0-3                                                                                                     \
+    libc6-dev=2.36-9+deb12u3                                                                                           \
+    gdb-multiarch=13.1-3                                                                                               \
+    make=4.3-4.1                                                                                                       \
+    ninja-build=1.11.1-1                                                                                               \
+    cmake=3.25.1-1                                                                                                     \
+                                                                                                                       \
+    ## C/C++ Linters / Formatters / Documentation ######################################################################
+    clang-format-15=1:15.0.6-4+b1                                                                                      \
+    clang-tidy-15=1:15.0.6-4+b1                                                                                        \
+    clangd-15=1:15.0.6-4+b1                                                                                            \
+    cppcheck=2.10-2                                                                                                    \
+    doxygen=1.9.4-4                                                                                                    \
+    lcov=1.16-1                                                                                                        \
+    graphviz=2.42.2-7+b3                                                                                               \
+    python3=3.11.2-1+b1                                                                                                \
+    python-is-python3=3.11.1-3                                                                                         \
+    python3-pip=23.0.1+dfsg-1                                                                                          \
+    python3-venv=3.11.2-1+b1                                                                                           \
+                                                                                                                       \
+    ## Other ###########################################################################################################
+    git=1:2.39.2-1.1                                                                                                   \
+    wget                                                                                                               \
+    xz-utils                                                                                                           \
+    locales;                                                                                                           \
+                                                                                                                       \
+    apt-get --assume-yes clean;                                                                                        \
+    apt-get --assume-yes autoremove;
+
+# Download the NET Runtime, necessary for the 'josetr.cmake-language-support-vscode' extension, for details refer to:
+# > https://learn.microsoft.com/en-us/dotnet/core/install/linux-debian
+RUN wget "https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb" -O "package.deb";               \
+    dpkg --install "./package.deb";                                                                                    \
+    apt-get --assume-yes update;                                                                                       \
+    apt-get --assume-yes --show-progress install dotnet-runtime-7.0;                                                   \
+    apt-get --assume-yes clean;                                                                                        \
+    apt-get --assume-yes autoremove;                                                                                   \
+    Remove-Item "./package.deb" -Force;
+
+# Ensure locales are properly installed.
+# See: https://stackoverflow.com/a/41648500
+ENV LANG C.UTF-8
+ENV LC_ALL C.UTF-8
+
+# Additional Git configurations, refer to:
+#   - https://linuxhint.com/git-handle-symbolic-links/#3
+#   - https://stackoverflow.com/questions/6842687/the-remote-end-hung-up-unexpectedly-while-git-cloning
+#   - https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key#telling-git-about-your-ssh-key
+# This forces the signing of all commits, user must provide 'user.name', 'user.email' and 'user.signingkey'.
+RUN git config --global core.symlinks true;                                                                            \
+    git config --global http.postBuffer 500M;                                                                          \
+    git config --global http.maxRequestBuffer 100M;                                                                    \
+    git config --global core.compression 0;                                                                            \
+    git config --global gpg.format ssh;                                                                                \
+    git config --global commit.gpgsign true;
+
+## Python Virtual Environment ##########################################################################################
+# Copy 'pyproject.toml' file and 'poetry.lock' file, if it exists, to the virtual environments directory.
+COPY "../pyproject.toml" "/usr/venvs/pyproject.toml"
+COPY "../poetry.[l]ock" "/usr/venvs/poetry.lock"
+
+# Create the virtual environment, activate it and:
+#   - Install poetry with pip and use it for package management.
+#   - Install 'production' and 'development' dependencies with Poetry.
+#   - Do not use caches to decrease size of the image.
+RUN Push-Location "/usr/venvs";                                                                                        \
+    python -m venv "development";                                                                                      \
+    & "/usr/venvs/development/bin/Activate.ps1";                                                                       \
+    pip install --no-cache-dir poetry==1.5.1;                                                                          \
+    poetry install --only main,dev --no-cache --no-interaction;                                                        \
+    deactivate;                                                                                                        \
+    Pop-Location;
+
+# Make the active development environment the default Python instance, this is necessary for the ReStructured Text
+# extension that will otherwise use the system Python and it provides no possibility to change it.
+ENV PATH="/usr/venvs/development/bin:${PATH}"
+
+# Export the path where the Python virtual environment is located as an environment variable.
+ENV VIRTUAL_ENV_PATH="/usr/venvs/development"

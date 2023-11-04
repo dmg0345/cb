@@ -1,0 +1,51 @@
+[build-system]
+requires = ["poetry-core==1.6.1"]
+build-backend = "poetry.core.masonry.api"
+
+## Poetry ##############################################################################################################
+# For details about 'tool.poetry' section, refer to:
+#   https://python-poetry.org/docs/pyproject/
+
+[tool.poetry]
+name = "python-tooling"
+version = "1.0.0"
+description = "Python tooling package for the project, not meant for build or distribution."
+authors = ["Diego Martínez García <dmg0345@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.12"
+
+[tool.poetry.group.dev.dependencies]
+doc8 = "0.11.2"
+tomli = "2.0.1"
+breathe = "4.35.0"
+sphinx = "7.2.6"
+sphinx-autobuild = "2021.3.14"
+sphinx-rtd-theme = "1.3.0"
+esbonio = "0.16.1"
+pygments = "2.15.1"
+fastcov = "1.14"
+junit2html = "30.1.3"
+
+## Doc8 ################################################################################################################
+# For details about 'tool.doc8' section, refer to:
+#   https://github.com/PyCQA/doc8#doc8
+
+[tool.doc8]
+allow-long-titles = true
+ignore = ["D004"]
+ignore-path = [
+    ".cmake_build",
+    ".devcontainer",
+    ".github",
+    ".git",
+    ".vscode",
+    "dist",
+    "other",
+    "src",
+    "tests",
+    "__pycache__",
+]
+max-line-length = 120
+file-encoding = "utf-8"
+extension = [".rst"]

@@ -1,0 +1,9 @@
+// CMake Kits file, for details refer to:
+//   - https://github.com/microsoft/vscode-cmake-tools/blob/main/docs/kits.md#kit-options
+[
+    {
+        "name": "GNU Toolchain",
+        "description": "GNU x64 Toolchain.",
+        "toolchainFile": "${workspaceFolder}/other/cmake/gnu_toolchain.cmake"
+    }
+]

@@ -1,0 +1,408 @@
+# Github Actions, full workflow file.
+#
+# For details refer to:
+#
+# - Documentation: https://docs.github.com/en/actions
+# - Github Actions Flow: https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions#the-components-of-github-actions
+# - Default environment variables: https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
+# - Contexts: https://docs.github.com/en/actions/learn-github-actions/contexts
+# - Workflows syntax: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+# - Github-Hosted runners: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#choosing-github-hosted-runners
+# - Built-in actions: https://github.com/actions
+#    - Checkout action: https://github.com/actions/checkout
+#    - Download artifact action: https://github.com/actions/download-artifact
+#    - Upload artifact action: https://github.com/actions/upload-artifact
+#    - Glob action: https://github.com/actions/toolkit/tree/main/packages/glob
+# - Deploy to Netlify: https://github.com/nwtgck/actions-netlify
+
+on:
+  workflow_call:
+    inputs:
+      docker_base_image:
+        description: Name of the base Docker image to use.
+        required: true
+        type: string
+      cmake_args:
+        description: Additional arguments to pass to CMake configuration stage.
+        required: false
+        default: ""
+        type: string
+      deploy:
+        description: The deployment to perform, one of 'production', 'staging' or 'development'.
+        required: false
+        default: "none"
+        type: string
+      deploy_alias:
+        description: Additional deploy alias for the deployment URLs, use URL safe characters and a reasonable lenght.
+        required: false
+        default: ""
+        type: string
+    secrets:
+      netlify_pat:
+        description: Personal Access Token to Netlify, if deploying
+        required: false
+      netlify_site_id:
+        description: Site ID of netlify, if deploying
+        required: false
+
+defaults:
+  run:
+    # Set the default shell to PowerShell everywhere
+    shell: pwsh
+
+env:
+  # Subfolder where the repository will be cloned.
+  CLONE_FOLDER: repo
+  # Build folder for CMake.
+  CMAKE_FOLDER: .cmake_build
+  # Folder where the CppCheck HTML report is stored.
+  CPPCHECK_HTML_FOLDER: other/cppcheck/.report
+  # Folder where the tests HTML report is stored.
+  TESTS_HTML_FOLDER: tests/.test_results
+  # Folder where the Coverage HTML report is stored.
+  COVERAGE_HTML_FOLDER: tests/.coverage
+  # Folder where the HTML documentation is stored.
+  DOCS_HTML_FOLDER: doc/.output/html
+
+name: Reusable Main Workflow
+jobs:
+  # Builds all configurations.
+  build-all-configs:
+    runs-on: [ubuntu-22.04]
+    container:
+        image: ${{ inputs.docker_base_image }}
+    steps:
+      - name: Checkout ${{ github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: ${{ env.CLONE_FOLDER }}
+          submodules: recursive
+      - name: Build every target with CMake
+        run: |
+          # Define configuration and other related parameters.
+          $cfgs = @{
+            'Debug' = @{ 'preload' = 'debug' };
+            'Release' = @{ 'preload' = 'release' };
+          };
+
+          # Loop each configuration and build it.
+          foreach ($cfg in $cfgs.GetEnumerator())
+          {
+            Write-Host "Currently working with configuration '$($cfg.Name)'...";
+            # Print remaining space.
+            Get-PSDrive | Write-Output;
+
+            # Rename clone folder to configuration, move to repository and ensure it is clean.
+            Rename-Item -Path "$ENV:CLONE_FOLDER" -NewName "$($cfg.Name)" -Force;
+            Push-Location "$($cfg.Name)";
+
+            # Prepare configuration tree.
+            cmake --fresh -C "./other/cmake/preload/$($cfg.Value.preload).cmake" -S . -B "$ENV:CMAKE_FOLDER" `
+              -DCFG_CI:BOOL=ON ${{ inputs.cmake_args }};
+            if ($LastExitCode -ne 0) { throw "$($cfg.Name): CMake configuration step failed with error '$LastExitCode'." };
+
+            # Build configuration.
+            cmake --build "$ENV:CMAKE_FOLDER" -j --target all;
+            if ($LastExitCode -ne 0) { throw "$($cfg.Name): CMake build step failed with error '$LastExitCode'." };
+
+            # Go back to parent folder and TAR repository.
+            # Note that the folders and files that are not relevant are excluded, to reduce time, size and not to surpass runner space limit.
+            Pop-Location;
+            tar `
+              --exclude="*.obj" `
+              --exclude="*.o" `
+              --exclude="*.pdf" `
+              --exclude="$($cfg.Name)/.git" `
+              --exclude="$($cfg.Name)/src/third_party" `
+              -cf "$($cfg.Name).repo.tar.gz" "$($cfg.Name)";
+            if ($LastExitCode -ne 0) { throw "$($cfg.Name): Compressing the repository failed with error '$LastExitCode'." }
+
+            # Add to the TAR relevant files from the excluded folders, based on as they exist or not basis for simplicity.
+            $incFolders = @();
+
+            # Loop items and add those that exist in the repository after build.
+            foreach ($item in $incFolders)
+            {
+              if (Test-Path "$item")
+              {
+                Write-Host "Adding '$item'...";
+                tar -rf "$($cfg.Name).repo.tar.gz" "$item";
+                if ($LastExitCode -ne 0) { throw "$($cfg.Name): Compressing the repository failed with error '$LastExitCode'." }
+              }
+            }
+
+            # Clean for the next run, after the tarring has ocurred.
+            Push-Location "$($cfg.Name)";
+            & "./manage.ps1" clean;
+            Pop-Location;
+
+            # Rename back to original name.
+            Rename-Item -Path "$($cfg.Name)" -NewName "$ENV:CLONE_FOLDER" -Force;
+          }
+      - name: Upload tarred ${{ github.sha }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ github.sha }}
+          path: '*.repo.tar.gz'
+          if-no-files-found: error
+
+  # Run 'clang-tidy' on all configurations.
+  clang-tidy:
+    needs: [build-all-configs]
+    runs-on: [ubuntu-22.04]
+    container:
+        image: ${{ inputs.docker_base_image }}
+    steps:
+      - name: Download tarred ${{ github.sha }}
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ github.sha }}
+      - name: Run 'clang-tidy'
+        run: |
+          Get-ChildItem -Path "." -Filter "*.repo.tar.gz" | ForEach-Object -Process `
+          {
+            # Untar repository and enter it.
+            $cfg = $_.Name.Substring(0, $_.Name.IndexOf("."));
+            Write-Host "Currently working with configuration '$cfg'...";
+            tar -xf "$($_.FullName)" "$cfg";
+            if ($LastExitCode -ne 0) { throw "Decompressing $($_.Name) failed with error '$LastExitCode'." }
+            Push-Location "$cfg";
+
+            # Run clang-tidy.
+            & "./manage.ps1" clang-tidy;
+
+            # Return to parent directory.
+            Pop-Location;
+          }
+
+  # Run 'clang-format' on all configurations.
+  clang-format:
+    needs: [build-all-configs]
+    runs-on: [ubuntu-22.04]
+    container:
+        image: ${{ inputs.docker_base_image }}
+    steps:
+      - name: Download tarred ${{ github.sha }}
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ github.sha }}
+      - name: Run 'clang-format'
+        run: |
+          Get-ChildItem -Path "." -Filter "*.repo.tar.gz" | ForEach-Object -Process `
+          {
+            # Untar repository and enter it.
+            $cfg = $_.Name.Substring(0, $_.Name.IndexOf("."));
+            Write-Host "Currently working with configuration '$cfg'...";
+            tar -xf "$($_.FullName)" "$cfg";
+            if ($LastExitCode -ne 0) { throw "Decompressing $($_.Name) failed with error '$LastExitCode'." }
+            Push-Location "$cfg";
+
+            # Run clang-format.
+            & "./manage.ps1" clang-format;
+
+            # Return to parent directory.
+            Pop-Location;
+          }
+
+  # Run 'cppcheck' on all configurations.
+  cppcheck:
+    needs: [build-all-configs]
+    runs-on: [ubuntu-22.04]
+    container:
+        image: ${{ inputs.docker_base_image }}
+    steps:
+      - name: Download tarred ${{ github.sha }}
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ github.sha }}
+      - name: Run 'cppcheck'
+        run: |
+          Get-ChildItem -Path "." -Filter "*.repo.tar.gz" | ForEach-Object -Process `
+          {
+            # Untar repository and enter it.
+            $cfg = $_.Name.Substring(0, $_.Name.IndexOf("."));
+            Write-Host "Currently working with configuration '$cfg'...";
+            tar -xf "$($_.FullName)" "$cfg";
+            if ($LastExitCode -ne 0) { throw "Decompressing '$cfg' failed with error '$LastExitCode'." }
+            Push-Location "$cfg";
+
+            # Run cppcheck.
+            & "./manage.ps1" cppcheck;
+
+            # Return to parent directory.
+            Pop-Location;
+          }
+      - name: Upload HTML report with errors
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: CppCheck HTML report
+          path: "**/${{ env.CPPCHECK_HTML_FOLDER }}"
+          if-no-files-found: error
+
+  # Run 'doc8' on all configurations.
+  doc8:
+    needs: [build-all-configs]
+    runs-on: [ubuntu-22.04]
+    container:
+        image: ${{ inputs.docker_base_image }}
+    steps:
+      - name: Download tarred ${{ github.sha }}
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ github.sha }}
+      - name: Run 'doc8'
+        run: |
+          Get-ChildItem -Path "." -Filter "*.repo.tar.gz" | ForEach-Object -Process `
+          {
+            # Untar repository and enter it.
+            $cfg = $_.Name.Substring(0, $_.Name.IndexOf("."));
+            Write-Host "Currently working with configuration '$cfg'...";
+            tar -xf "$($_.FullName)" "$cfg";
+            if ($LastExitCode -ne 0) { throw "Decompressing $cfg failed with error '$LastExitCode'." }
+            Push-Location "$cfg";
+
+            # Run clang-format.
+            & "./manage.ps1" doc8;
+
+            # Return to parent directory.
+            Pop-Location;
+          }
+
+  # Run 'tests' on all configurations.
+  tests:
+    needs: [clang-tidy, clang-format, cppcheck]
+    runs-on: [ubuntu-22.04]
+    container:
+        image: ${{ inputs.docker_base_image }}
+    steps:
+      - name: Download tarred ${{ github.sha }}
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ github.sha }}
+      - name: Run tests with 'ctest' and generate HTML test results and coverage reports
+        run: |
+          Get-ChildItem -Path "." -Filter "*.repo.tar.gz" | ForEach-Object -Process `
+          {
+            # Untar repository and enter it.
+            $cfg = $_.Name.Substring(0, $_.Name.IndexOf("."));
+            Write-Host "Currently working with configuration '$cfg'...";
+            tar -xf "$($_.FullName)" "$cfg";
+            if ($LastExitCode -ne 0) { throw "Decompressing $cfg failed with error '$LastExitCode'." }
+            Push-Location "$cfg";
+
+            # Run tests and generate reports.
+            ctest --extra-verbose --output-log "$ENV:TESTS_HTML_FOLDER/output.log" --no-tests=error --test-dir "$ENV:CMAKE_FOLDER";
+            & "./manage.ps1" test_report;
+            if ($cfg -in @("Debug"))
+            {
+              & "./manage.ps1" coverage;
+            }
+
+            # Return to parent directory.
+            Pop-Location;
+          }
+      - name: Upload HTML reports with test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: Test results HTML reports
+          path: "**/${{ env.TESTS_HTML_FOLDER }}"
+          if-no-files-found: error
+      - name: Upload HTML reports with coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: Coverage HTML reports
+          path: "**/${{ env.COVERAGE_HTML_FOLDER }}"
+          if-no-files-found: error
+
+  # Run 'docs' on all configurations.
+  docs:
+    needs: [clang-tidy, clang-format, cppcheck, doc8]
+    runs-on: [ubuntu-22.04]
+    container:
+        image: ${{ inputs.docker_base_image }}
+    steps:
+      - name: Download tarred ${{ github.sha }}
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ github.sha }}
+      - name: Generate HTML documentation
+        run: |
+          Get-ChildItem -Path "." -Filter "*.repo.tar.gz" | ForEach-Object -Process `
+          {
+            # Untar repository and enter it.
+            $cfg = $_.Name.Substring(0, $_.Name.IndexOf("."));
+            Write-Host "Currently working with configuration '$cfg'...";
+            tar -xf "$($_.FullName)" "$cfg";
+            if ($LastExitCode -ne 0) { throw "Decompressing '$cfg' failed with error '$LastExitCode'." }
+            Push-Location "$cfg";
+
+            # Generate HTML documentation.
+            & "./manage.ps1" docs;
+
+            # Return to parent directory.
+            Pop-Location;
+          }
+      - name: Upload HTML documentation
+        uses: actions/upload-artifact@v3
+        with:
+          name: HTML documentation
+          path: "**/Release/${{ env.DOCS_HTML_FOLDER }}" # Only take the documentation for the Release configuration.
+          if-no-files-found: error
+
+  # Deploy 'Release' configuration, with other artifacts from other configurations as necessary.
+  deploy:
+    needs: [tests, docs]
+    runs-on: [ubuntu-22.04]
+    if: ${{ inputs.deploy != 'none' }}
+    steps:
+      - name: Download HTML documentation
+        uses: actions/download-artifact@v3
+        with:
+          name: HTML documentation
+          path: html_docs
+      - name: Download test results HTML reports
+        uses: actions/download-artifact@v3
+        with:
+          name: Test results HTML reports
+          path: html_test_results
+      - name: Download coverage HTML reports
+        uses: actions/download-artifact@v3
+        with:
+          name: Coverage HTML reports
+          path: html_coverage_reports
+      - name: Include HTML test reports and HTML coverage reports in documentation
+        run: |
+          # Create source paths to folders with reports.
+          $srcCoverageReports = "./html_coverage_reports/Debug/$ENV:COVERAGE_HTML_FOLDER";
+          $srcTestResultReports = "./html_test_results/Debug/$ENV:TESTS_HTML_FOLDER";
+
+          # Create destination paths to folders with the reports.
+          $destCoverageReports = "./html_docs/Release/$ENV:DOCS_HTML_FOLDER/_static/_test_coverage";
+          $destTestResultReports = "./html_docs/Release/$ENV:DOCS_HTML_FOLDER/_static/_test_results";
+
+          # Create destination folders as they do not exist.
+          New-Item -ItemType Directory -Path "$destCoverageReports" -Force | Out-Null;
+          New-Item -ItemType Directory -Path "$destTestResultReports" -Force | Out-Null;
+
+          # Copy contents of source folders to destination.
+          Get-ChildItem -Path "$srcCoverageReports" -Recurse | Move-Item -Destination "$destCoverageReports";
+          Get-ChildItem -Path "$srcTestResultReports" -Recurse | Move-Item -Destination "$destTestResultReports";
+      - name: Deploy to Netlify environment
+        uses: nwtgck/actions-netlify@v2.1.0
+        with:
+          publish-dir: html_docs/Release/${{ env.DOCS_HTML_FOLDER }}
+          production-deploy: ${{ inputs.deploy == 'production' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pull-request-comment: true
+          enable-commit-comment: false
+          enable-commit-status: false
+          enable-github-deployment: false
+          overwrites-pull-request-comment: false
+          alias: ${{ inputs.deploy_alias }}
+          fails-without-credentials: true
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.netlify_pat }}
+          NETLIFY_SITE_ID: ${{ secrets.netlify_site_id }}
+        timeout-minutes: 1

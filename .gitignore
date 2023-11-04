@@ -1,0 +1,24 @@
+# Ignore path to dependencies.
+/other/powershell_scripts
+/tests/cmocka/cmocka
+# Ignore Python cache folders.
+/**/__pycache__
+# Ignore CMake build directory.
+.cmake_build
+# Ignore all logs.
+/**/*.log
+# Ignore test results and coverage reports.
+/tests/.coverage
+/tests/.test_results
+# Ignore CppCheck build directories.
+/other/cppcheck/.build
+/other/cppcheck/.report
+# Ignore Doxygen, Sphinx and related documentation files.
+/doc/.sphinx_build
+/doc/.doxygen_build
+/doc/.output
+# Ignore distributables.
+dist
+
+# Ignore version file.
+/src/inc/cb/other/version.h

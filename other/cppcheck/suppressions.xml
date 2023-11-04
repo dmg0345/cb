@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<!-- 
+    CppCheck suppressions file, use this to globally suppress directories, files, rules... and use 
+    inline suppressions where possible and convenient.
+-->
+<suppressions>
+    <!-- ################################### Suppressed Directories ############################# -->
+    <!-- Suppress every rule in third party test harness. -->
+    <suppress>
+        <id>*</id>
+        <fileName>*tests/cmocka/*</fileName>
+    </suppress>
+    <!-- ################################### Suppressed Files ################################### -->
+    <!-- ################################### Suppressed Rules ################################### -->
+    <!--
+    Supress missing system includes rule, it is not recommended to provide the paths to CppCheck:
+        - https://stackoverflow.com/questions/6986033/cppcheck-cant-find-include-files
+    -->
+    <suppress> 
+        <id>missingIncludeSystem</id>
+        <fileName>*</fileName>
+    </suppress>
+    <!-- Suppress unmatched suppression rule, which generates noise in many scenarios. -->
+    <suppress> 
+        <id>unmatchedSuppression</id>
+        <fileName>*</fileName>
+    </suppress>
+    <!-- Suppress variable scope rule. -->
+    <suppress>
+        <id>variableScope</id>
+        <fileName>*</fileName>
+    </suppress>
+    <!-- Suppress unread variables, it can trigger for default initialization values for variables in functions. -->
+    <suppress> 
+        <id>unreadVariable</id>
+        <fileName>*</fileName>
+    </suppress>
+    <!--
+    Advisory rule, MISRA Justification:
+        - Allow early returns for validation of parameters and more convenient error handling, avoid nested-ifs.
+    -->
+    <suppress>
+        <id>misra-c2012-15.5</id>
+        <fileName>*</fileName>
+    </suppress>
+    <!--
+    Advisory rule, MISRA Justification:
+        - Allow static variables to be on the file scope, better code organization and avoid functions with state.
+    -->
+    <suppress>
+        <id>misra-c2012-8.9</id>
+        <fileName>*</fileName>
+    </suppress>
+    <!--
+    Advisory rule, MISRA Justification:
+        - Allow pointer arithmetic, the circular buffers rely on read and write pointers.
+    -->
+    <suppress>
+        <id>misra-c2012-18.4</id>
+        <fileName>*</fileName>
+    </suppress>
+    <!--
+    Advisory rule, MISRA Justification:
+        - Allow casting of pointers to void to pointers to objects to avoid preprocessor templates.
+    -->
+    <suppress>
+        <id>misra-c2012-11.5</id>
+        <fileName>*</fileName>
+    </suppress>
+    <!--
+    Advisory rule, MISRA Justification:
+        - Allow discriminated union pattern on cb_evt_data_t for easier handling of events for the user.
+    -->
+    <suppress>
+        <id>misra-c2012-19.2</id>
+        <fileName>*cb.h*</fileName>
+    </suppress>
+    <!--
+    Required rule, MISRA Justification:
+        - Disable this just in the test code in order to use assert_true and assert_false with CMocka, which cast
+          boolean to integers to perform the assertions.
+    -->
+    <suppress>
+        <id>misra-c2012-10.5</id>
+        <fileName>*tests/tests/*</fileName>
+    </suppress>
+</suppressions>

@@ -1,0 +1,22 @@
+// CMake Variants file, for details refer to:
+//   - https://github.com/microsoft/vscode-cmake-tools/blob/main/docs/variants.md
+{
+    "buildType": {
+        "default": "Debug",
+        "description": "Build Configuration",
+        "choices": {
+            "Debug": {
+                "short": "Debug",
+                "long": "Performs a build with optimization disabled, suitable for debugging.",
+                "buildType": "Debug",
+                "generator": "Ninja"
+            },
+            "Release": {
+                "short": "Release",
+                "long": "Performs a build with optimization enabled, suitable for production.",
+                "buildType": "Release",
+                "generator": "Ninja"
+            }
+        }
+    }
+}
