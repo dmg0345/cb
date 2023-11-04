@@ -38,21 +38,9 @@ target_include_directories(cb INTERFACE ${INCLUDE_DIRS})
 set(CB_SRC_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/inc/cb")
 set(CB_INSTALL_ROOT_DIR "${CMAKE_INSTALL_INCLUDEDIR}/cb")
 
-# TODO: Handle files
-# # Common include files.
-# install(FILES "${CB_SRC_ROOT_DIR}/cb.h" DESTINATION "${CB_INSTALL_ROOT_DIR}")
-# install(FILES
-#     "${CB_SRC_ROOT_DIR}/other/version.h"
-#     "${CB_SRC_ROOT_DIR}/other/commons.h"
-#     DESTINATION "${CB_INSTALL_ROOT_DIR}/other"
-# )
-# 
-# # Interface files.
-# install(FILES
-#     "${BDE_SRC_ROOT_DIR}/cb/decode.h"
-#     "${BDE_SRC_ROOT_DIR}/cb/encode.h"
-#     "${BDE_SRC_ROOT_DIR}/cb/url_decode.h"
-#     "${BDE_SRC_ROOT_DIR}/cb/url_encode.h"
-#     DESTINATION "${BDE_INSTALL_ROOT_DIR}/cb"
-# )
-# 
+# Include files.
+install(FILES "${CB_SRC_ROOT_DIR}/cb.h" DESTINATION "${CB_INSTALL_ROOT_DIR}")
+install(FILES
+    "${CB_SRC_ROOT_DIR}/other/version.h"
+    DESTINATION "${CB_INSTALL_ROOT_DIR}/other"
+)
