@@ -43,8 +43,8 @@ set(CMAKE_EXECUTABLE_SUFFIX_ASM ".elf")
 # -fdata-sections: Place data items in their own section.
 # -Wl,--gc-sections: Linker, delete unused sections.
 # -Wl,-Map mapfile.map: Linker, generate mapfile for each executable target called 'mapfile.map'.
-# -isystem /usr/include: Explicit folder for 'clangd' and other tools.
 # -isystem /usr/lib/gcc/x86_64-linux-gnu/12/include: Explicit folder for 'clangd' and other tools.
+# -isystem /usr/include: Explicit folder for 'clangd' and other tools.
 string(CONCAT FLAGS 
     " -Wall"
     " -Werror"
@@ -55,8 +55,8 @@ string(CONCAT FLAGS
     " -fdata-sections"
     " -Wl,--gc-sections"
     " -Wl,-Map=mapfile.map"
-    " -isystem /usr/include"
     " -isystem /usr/lib/gcc/x86_64-linux-gnu/12/include"
+    " -isystem /usr/include"
 )
 
 # The C specific options include:

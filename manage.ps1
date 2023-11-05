@@ -182,7 +182,7 @@ elseif ($Command -eq "cppcheck")
     $cppCheckRules = "";
     if ($CppCheckUseC2012Rules.IsPresent)
     {
-        $cppCheckRules = "/run/secrets/cppcheck_c_2012_misra_rules";
+        $cppCheckRules = "$ENV:CPPCHECK_C_2012_MISRA_RULES";
     }
 
     Start-CppCheck `
