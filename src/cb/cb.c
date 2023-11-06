@@ -8,9 +8,6 @@
  ***********************************************************************************************************************
  */
 
-/** @defgroup cb_iapi_impl Internal API implementation */
-/** @defgroup cb_papi_impl Public API implementation */
-
 /* Includes ----------------------------------------------------------------------------------------------------------*/
 #include "cb/cb.h"
 #include <string.h>
