@@ -16,7 +16,8 @@
 extern "C" {
 #endif
 
-/** @addtogroup cb Circular Buffer library
+/**
+ * @addtogroup cb Circular Buffer library
  *
  * Provides a circular buffer with read and write pointers that can accomodate types of multiple sizes.
  *
@@ -25,6 +26,8 @@ extern "C" {
 
 /** @defgroup cb_defs Definitions */
 /** @defgroup cb_papi Public API */
+/** @defgroup cb_iapi_impl Internal API implementation */
+/** @defgroup cb_papi_impl Public API implementation */
 
 /* Includes ----------------------------------------------------------------------------------------------------------*/
 #include "cb/other/version.h"
